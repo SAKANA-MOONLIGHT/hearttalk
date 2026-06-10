@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "name": "心动话题",
+    "slug": "hearttalk",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#1a1033",
+    "splash": {
+      "backgroundColor": "#1a1033",
+      "resizeMode": "contain"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.hearttalk.app",
+      "infoPlist": {
+        "CFBundleDisplayName": "心动话题"
+      }
+    },
+    "android": {
+      "package": "com.hearttalk.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#1a1033",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "305fba7d-aa2a-4953-a192-9c2ee02f9350"
+      }
+    },
+    "owner": "kurosiro"
+  }
+}
