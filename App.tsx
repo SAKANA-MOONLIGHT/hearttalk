@@ -91,6 +91,59 @@ function Chip({ label, color }: { label: string; color: string }) {
   );
 }
 
+// ---------- 主题选择器 ----------
+
+const THEME_CHIP_STEP = 92; // 估算的单个主题块宽度（含间距），用于自动定位
+
+function ThemeSelector({ month, onSelect }: { month: number; onSelect: (m: number) => void }) {
+  const scrollRef = useRef<ScrollView>(null);
+
+  // 自动滚动到当前选中的主题，保证它始终可见
+  useEffect(() => {
+    scrollRef.current?.scrollTo({
+      x: Math.max(0, (month - 1) * THEME_CHIP_STEP - 110),
+      animated: true,
+    });
+  }, [month]);
+
+  return (
+    <ScrollView
+      ref={scrollRef}
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={styles.themeScroll}
+      contentContainerStyle={styles.themeScrollContent}
+    >
+      {STAGES.map((s) => {
+        const active = s.month === month;
+        return (
+          <Pressable
+            key={s.month}
+            onPress={() => onSelect(s.month)}
+            style={[
+              styles.themeChip,
+              active && { backgroundColor: s.accent + '33', borderColor: s.accent },
+            ]}
+          >
+            <Text
+              style={[styles.themeChipMonth, active && { color: s.accent }]}
+              maxFontSizeMultiplier={1.2}
+            >
+              {s.month}月
+            </Text>
+            <Text
+              style={[styles.themeChipName, active && { color: '#fff' }]}
+              maxFontSizeMultiplier={1.2}
+            >
+              {s.name}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </ScrollView>
+  );
+}
+
 // ---------- 欢迎页 ----------
 
 function WelcomeScreen({ onStart }: { onStart: () => void }) {
@@ -126,12 +179,14 @@ function WelcomeScreen({ onStart }: { onStart: () => void }) {
   const ty = float.interpolate({ inputRange: [0, 1], outputRange: [0, -12] });
 
   return (
-    <Animated.View
-      style={[
-        styles.welcome,
-        { opacity: fade, paddingTop: insets.top + 48, paddingBottom: insets.bottom + 28 },
-      ]}
-    >
+    <Animated.View style={{ flex: 1, opacity: fade }}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[
+          styles.welcome,
+          { paddingTop: insets.top + 48, paddingBottom: insets.bottom + 28 },
+        ]}
+      >
       <Animated.View style={[styles.logoCircle, { transform: [{ translateY: ty }] }]}>
         <Text style={styles.logoEmoji}>💞</Text>
       </Animated.View>
@@ -166,10 +221,13 @@ function WelcomeScreen({ onStart }: { onStart: () => void }) {
           end={{ x: 1, y: 1 }}
           style={styles.primaryBtnInner}
         >
-          <Text style={styles.primaryBtnText}>开启我们的 366 天 ✨</Text>
+          <Text style={styles.primaryBtnText} maxFontSizeMultiplier={1.2}>
+            开启我们的 366 天 ✨
+          </Text>
         </LinearGradient>
       </ScalePressable>
-      <Text style={styles.welcomeHint}>今天就是旅程的第 1 天</Text>
+        <Text style={styles.welcomeHint}>今天就是旅程的第 1 天</Text>
+      </ScrollView>
     </Animated.View>
   );
 }
@@ -196,6 +254,8 @@ function TopicCard({
   anim: Animated.Value;
 }) {
   const stage = topic ? stageForMonth(topic.month) : null;
+  // 卡片内部配色跟随话题自己所属的主题，避免切换主题后颜色错乱
+  const cardAccent = stage ? stage.accent : accent;
   const ty = anim.interpolate({ inputRange: [0, 1], outputRange: [26, 0] });
   const rot = anim.interpolate({ inputRange: [0, 1], outputRange: ['2deg', '0deg'] });
 
@@ -203,13 +263,13 @@ function TopicCard({
     <Animated.View
       style={[styles.card, { opacity: anim, transform: [{ translateY: ty }, { rotate: rot }] }]}
     >
-      <Text style={[styles.quoteMark, { color: accent }]}>“</Text>
+      <Text style={[styles.quoteMark, { color: cardAccent }]}>“</Text>
       {topic && stage ? (
         <>
           <Text style={styles.cardText}>{topic.text}</Text>
           {showHint && (
-            <View style={[styles.hintBox, { borderColor: accent + '55' }]}>
-              <Text style={[styles.hintTitle, { color: accent }]}>💡 如何自然开启</Text>
+            <View style={[styles.hintBox, { borderColor: cardAccent + '55' }]}>
+              <Text style={[styles.hintTitle, { color: cardAccent }]}>💡 如何自然开启</Text>
               <Text style={styles.hintText}>{hintForTopic(topic)}</Text>
             </View>
           )}
@@ -223,11 +283,11 @@ function TopicCard({
                 onPress={onToggleHint}
                 style={[
                   styles.hintBtn,
-                  { borderColor: accent + '77' },
-                  showHint && { backgroundColor: accent + '26' },
+                  { borderColor: cardAccent + '77' },
+                  showHint && { backgroundColor: cardAccent + '26' },
                 ]}
               >
-                <Text style={[styles.hintBtnText, { color: accent }]}>
+                <Text style={[styles.hintBtnText, { color: cardAccent }]} maxFontSizeMultiplier={1.2}>
                   {showHint ? '收起提示' : '💡 提示'}
                 </Text>
               </Pressable>
@@ -318,6 +378,7 @@ function ListModal({
             <FlatList
               data={data}
               keyExtractor={(item, i) => `${item.id}-${i}`}
+              style={{ flexShrink: 1 }}
               contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 20 }}
               renderItem={({ item }) => {
                 const t = topicById(item.id);
@@ -414,6 +475,7 @@ function JourneyModal({
           <FlatList
             data={STAGES}
             keyExtractor={(s) => String(s.month)}
+            style={{ flexShrink: 1 }}
             contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 8 }}
             renderItem={({ item: s }) => {
               const current = s.month === month;
@@ -589,42 +651,22 @@ function Main() {
           </View>
 
           {/* 主题选择器（自由切换，无锁定） */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.themeScroll}
-            contentContainerStyle={styles.themeScrollContent}
-          >
-            {STAGES.map((s) => {
-              const active = s.month === month;
-              return (
-                <Pressable
-                  key={s.month}
-                  onPress={() => selectMonth(s.month)}
-                  style={[
-                    styles.themeChip,
-                    active && { backgroundColor: s.accent + '33', borderColor: s.accent },
-                  ]}
-                >
-                  <Text style={[styles.themeChipMonth, active && { color: s.accent }]}>
-                    {s.month}月
-                  </Text>
-                  <Text style={[styles.themeChipName, active && { color: '#fff' }]}>
-                    {s.name}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
+          <ThemeSelector month={month} onSelect={selectMonth} />
 
           {/* 阶段信息 */}
           <View style={styles.stageBanner}>
             <Chip label={month === 1 ? '暧昧篇' : '情侣篇'} color={stage.accent} />
-            <Text style={styles.stageBannerSub}>{stage.subtitle}</Text>
+            <Text style={styles.stageBannerSub} numberOfLines={1}>
+              {stage.subtitle}
+            </Text>
           </View>
 
-          {/* 话题卡片 */}
-          <View style={styles.cardWrap}>
+          {/* 话题卡片（可滚动：内容超出时自动滚动而不是被裁切） */}
+          <ScrollView
+            style={styles.cardWrap}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.cardScrollContent}
+          >
             <TopicCard
               topic={notice ? null : currentTopic}
               notice={notice}
@@ -638,7 +680,7 @@ function Main() {
               }}
               anim={cardAnim}
             />
-          </View>
+          </ScrollView>
 
           {/* 抽取按钮 */}
           <View style={{ paddingHorizontal: 24 }}>
@@ -649,7 +691,7 @@ function Main() {
                 end={{ x: 1, y: 1 }}
                 style={styles.primaryBtnInner}
               >
-                <Text style={styles.primaryBtnText}>
+                <Text style={styles.primaryBtnText} maxFontSizeMultiplier={1.2}>
                   {currentTopic ? '🎲 再抽一个话题' : '🎲 抽取话题'}
                 </Text>
               </LinearGradient>
@@ -678,8 +720,12 @@ function Main() {
                   setListVisible(true);
                 }}
               >
-                <Text style={styles.bottomBtnIcon}>{icon}</Text>
-                <Text style={styles.bottomBtnText}>{label}</Text>
+                <Text style={styles.bottomBtnIcon} maxFontSizeMultiplier={1.2}>
+                  {icon}
+                </Text>
+                <Text style={styles.bottomBtnText} maxFontSizeMultiplier={1.2} numberOfLines={1}>
+                  {label}
+                </Text>
               </ScalePressable>
             ))}
           </View>
@@ -723,7 +769,7 @@ export default function App() {
 
 const styles = StyleSheet.create({
   // 欢迎页
-  welcome: { flex: 1, alignItems: 'center', paddingHorizontal: 28 },
+  welcome: { flexGrow: 1, alignItems: 'center', paddingHorizontal: 28 },
   logoCircle: {
     width: 104,
     height: 104,
@@ -824,15 +870,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
-  stageBannerSub: { color: 'rgba(255,255,255,0.6)', fontSize: 13, letterSpacing: 2 },
+  stageBannerSub: { color: 'rgba(255,255,255,0.6)', fontSize: 13, letterSpacing: 2, flexShrink: 1 },
 
   // 卡片
-  cardWrap: {
-    flex: 1,
+  cardWrap: { flex: 1, minHeight: 0 },
+  cardScrollContent: {
+    flexGrow: 1,
     justifyContent: 'center',
     paddingHorizontal: 24,
     paddingVertical: 8,
-    minHeight: 0,
   },
   card: {
     backgroundColor: 'rgba(255,255,255,0.09)',
