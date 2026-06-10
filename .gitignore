@@ -41,6 +41,9 @@ yarn-error.*
 CLAUDE.md
 AGENTS.md
 
+# npm auth
+.npmrc
+
 # generated native folders
 /ios
 /android

@@ -1,7 +1,14 @@
 {
-  "name": "hearttalk",
+  "name": "@sakana-moonlight/hearttalk",
   "version": "1.0.0",
   "main": "index.ts",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SAKANA-MOONLIGHT/hearttalk.git"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
     "expo": "~56.0.9",
@@ -22,5 +29,5 @@
     "ios": "expo start --ios",
     "web": "expo start --web"
   },
-  "private": true
+  "private": false
 }
