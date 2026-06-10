@@ -57,15 +57,18 @@ function haptic(kind: 'light' | 'medium' | 'success') {
 function ScalePressable({
   onPress,
   style,
+  containerStyle,
   children,
 }: {
   onPress: () => void;
   style?: object;
+  containerStyle?: object;
   children: React.ReactNode;
 }) {
   const scale = useRef(new Animated.Value(1)).current;
   return (
     <Pressable
+      style={containerStyle}
       onPressIn={() =>
         Animated.spring(scale, { toValue: 0.94, useNativeDriver: true, speed: 40 }).start()
       }
@@ -616,6 +619,7 @@ function Main() {
             ).map(([icon, label, tab]) => (
               <ScalePressable
                 key={tab}
+                containerStyle={{ flex: 1 }}
                 style={styles.bottomBtn}
                 onPress={() => {
                   setListTab(tab);
@@ -703,7 +707,7 @@ const styles = StyleSheet.create({
   // 通用按钮
   primaryBtn: { alignSelf: 'stretch', borderRadius: 30, overflow: 'hidden' },
   primaryBtnInner: {
-    paddingVertical: 17,
+    paddingVertical: 15,
     alignItems: 'center',
     borderRadius: 30,
   },
@@ -744,47 +748,53 @@ const styles = StyleSheet.create({
   },
   progressFill: { height: 4, borderRadius: 2 },
 
-  stageBanner: { paddingHorizontal: 24, marginTop: 20, gap: 6 },
-  stageBannerTitle: { color: '#fff', fontSize: 24, fontWeight: '800', letterSpacing: 1 },
+  stageBanner: { paddingHorizontal: 24, marginTop: 12, gap: 5 },
+  stageBannerTitle: { color: '#fff', fontSize: 23, fontWeight: '800', letterSpacing: 1 },
   stageBannerSub: { color: 'rgba(255,255,255,0.6)', fontSize: 13, letterSpacing: 2 },
 
   // 卡片
-  cardWrap: { flex: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 14 },
+  cardWrap: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 8,
+    minHeight: 0,
+  },
   card: {
     backgroundColor: 'rgba(255,255,255,0.09)',
     borderRadius: 28,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.16)',
-    padding: 26,
-    minHeight: 230,
+    padding: 24,
+    minHeight: 190,
+    justifyContent: 'space-between',
     shadowColor: '#000',
     shadowOpacity: 0.35,
     shadowRadius: 24,
     shadowOffset: { width: 0, height: 12 },
     elevation: 10,
   },
-  quoteMark: { fontSize: 56, lineHeight: 56, fontWeight: '900', opacity: 0.9 },
+  quoteMark: { fontSize: 40, lineHeight: 44, fontWeight: '900', opacity: 0.9 },
   cardText: {
     color: '#fff',
-    fontSize: 23,
-    lineHeight: 36,
+    fontSize: 22,
+    lineHeight: 34,
     fontWeight: '600',
     letterSpacing: 0.5,
-    flex: 1,
+    marginVertical: 8,
   },
   cardPlaceholder: {
     color: 'rgba(255,255,255,0.55)',
     fontSize: 17,
     lineHeight: 30,
-    flex: 1,
     textAlign: 'center',
-    marginTop: 10,
+    paddingVertical: 16,
   },
   cardFooter: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 18,
+    marginTop: 12,
   },
   cardMeta: { color: 'rgba(255,255,255,0.5)', fontSize: 12, letterSpacing: 1.5 },
   favIcon: { fontSize: 26 },
@@ -793,18 +803,18 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.55)',
     fontSize: 12,
     textAlign: 'center',
-    marginTop: 12,
+    marginTop: 8,
     letterSpacing: 1,
   },
 
-  bottomRow: { flexDirection: 'row', gap: 14, paddingHorizontal: 24, marginTop: 18 },
+  bottomRow: { flexDirection: 'row', gap: 14, paddingHorizontal: 24, marginTop: 12 },
   bottomBtn: {
-    flex: 1,
     flexDirection: 'row',
     gap: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 13,
+    minHeight: 48,
+    paddingVertical: 12,
     borderRadius: 18,
     backgroundColor: 'rgba(255,255,255,0.08)',
     borderWidth: 1,
