@@ -12,6 +12,7 @@ export interface AppState {
   history: HistoryEntry[]; // 抽取历史（新的在前）
   favs: number[]; // 收藏的话题 id
   lastTopicId: number | null; // 最近一次抽到的话题
+  selectedMonth: number | null; // 玩家选择的主题月份（null = 跟随真实日期）
 }
 
 export const DEFAULT_STATE: AppState = {
@@ -20,6 +21,7 @@ export const DEFAULT_STATE: AppState = {
   history: [],
   favs: [],
   lastTopicId: null,
+  selectedMonth: null,
 };
 
 const KEY = '@hearttalk/state/v1';

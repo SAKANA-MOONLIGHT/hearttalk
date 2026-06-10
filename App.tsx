@@ -7,6 +7,7 @@ import {
   Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -18,10 +19,10 @@ import * as Haptics from 'expo-haptics';
 import {
   ALL_TOPICS,
   MONTH_DAYS,
-  MONTH_START_DAY,
   STAGES,
   TOTAL_DAYS,
   Topic,
+  hintForTopic,
   monthForDay,
   stageForMonth,
   topicById,
@@ -139,9 +140,9 @@ function WelcomeScreen({ onStart }: { onStart: () => void }) {
 
       <View style={styles.featureBox}>
         {[
-          ['🌙', '第 1 个月 · 31 个暧昧期话题，试探彼此的心意'],
-          ['💘', '第 2 ~ 12 个月 · 335 个情侣话题，逐月升温'],
-          ['🎲', '每天随机抽取，366 个话题永不重复'],
+          ['🌙', '暧昧篇 31 题 + 情侣篇 335 题，共 366 个话题'],
+          ['🎯', '12 个主题阶段自由切换，想聊哪个聊哪个'],
+          ['🎲', '随机抽取永不重复，每题配开场提示'],
           ['📖', '自动保存历史与收藏，记录你们的故事'],
         ].map(([icon, text]) => (
           <View key={text} style={styles.featureRow}>
@@ -180,14 +181,18 @@ function TopicCard({
   notice,
   accent,
   isFav,
+  showHint,
   onToggleFav,
+  onToggleHint,
   anim,
 }: {
   topic: Topic | null;
   notice: string | null;
   accent: string;
   isFav: boolean;
+  showHint: boolean;
   onToggleFav: () => void;
+  onToggleHint: () => void;
   anim: Animated.Value;
 }) {
   const stage = topic ? stageForMonth(topic.month) : null;
@@ -202,17 +207,38 @@ function TopicCard({
       {topic && stage ? (
         <>
           <Text style={styles.cardText}>{topic.text}</Text>
+          {showHint && (
+            <View style={[styles.hintBox, { borderColor: accent + '55' }]}>
+              <Text style={[styles.hintTitle, { color: accent }]}>💡 如何自然开启</Text>
+              <Text style={styles.hintText}>{hintForTopic(topic)}</Text>
+            </View>
+          )}
           <View style={styles.cardFooter}>
             <Text style={styles.cardMeta}>
               {stage.name} · 第 {topic.indexInMonth} 题
             </Text>
-            <Pressable hitSlop={12} onPress={onToggleFav}>
-              <Text
-                style={[styles.favIcon, { color: isFav ? '#ff4f81' : 'rgba(255,255,255,0.45)' }]}
+            <View style={styles.cardActions}>
+              <Pressable
+                hitSlop={8}
+                onPress={onToggleHint}
+                style={[
+                  styles.hintBtn,
+                  { borderColor: accent + '77' },
+                  showHint && { backgroundColor: accent + '26' },
+                ]}
               >
-                {isFav ? '♥' : '♡'}
-              </Text>
-            </Pressable>
+                <Text style={[styles.hintBtnText, { color: accent }]}>
+                  {showHint ? '收起提示' : '💡 提示'}
+                </Text>
+              </Pressable>
+              <Pressable hitSlop={12} onPress={onToggleFav}>
+                <Text
+                  style={[styles.favIcon, { color: isFav ? '#ff4f81' : 'rgba(255,255,255,0.45)' }]}
+                >
+                  {isFav ? '♥' : '♡'}
+                </Text>
+              </Pressable>
+            </View>
           </View>
         </>
       ) : (
@@ -333,17 +359,20 @@ function JourneyModal({
   visible,
   state,
   day,
+  month,
+  onSelectMonth,
   onClose,
   onReset,
 }: {
   visible: boolean;
   state: AppState;
   day: number;
+  month: number;
+  onSelectMonth: (m: number) => void;
   onClose: () => void;
   onReset: () => void;
 }) {
   const insets = useSafeAreaInsets();
-  const month = monthForDay(day);
 
   const confirmReset = () => {
     Alert.alert('重新开始旅程？', '将清空所有历史、收藏与进度，从第 1 天重新开始。', [
@@ -387,39 +416,30 @@ function JourneyModal({
             keyExtractor={(s) => String(s.month)}
             contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 8 }}
             renderItem={({ item: s }) => {
-              const start = MONTH_START_DAY[s.month - 1];
-              const end = start + MONTH_DAYS[s.month - 1] - 1;
-              const reached = day >= start;
               const current = s.month === month;
               const usedInMonth = state.used.filter(
                 (id) => ALL_TOPICS[id]?.month === s.month
               ).length;
               return (
-                <View style={[styles.stageRow, current && styles.stageRowCurrent]}>
-                  <View
-                    style={[
-                      styles.stageDot,
-                      { backgroundColor: reached ? s.accent : 'rgba(255,255,255,0.18)' },
-                    ]}
-                  />
+                <Pressable
+                  style={[styles.stageRow, current && styles.stageRowCurrent]}
+                  onPress={() => {
+                    onSelectMonth(s.month);
+                    onClose();
+                  }}
+                >
+                  <View style={[styles.stageDot, { backgroundColor: s.accent }]} />
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.stageName, !reached && { color: 'rgba(255,255,255,0.4)' }]}>
+                    <Text style={styles.stageName}>
                       第 {s.month} 月 · {s.name}
                       {s.month === 1 ? '（暧昧篇）' : '（情侣篇）'}
                     </Text>
-                    <Text style={styles.stageSub}>
-                      第 {start}~{end} 天 · {s.subtitle}
-                    </Text>
+                    <Text style={styles.stageSub}>{s.subtitle} · 点击切换到此主题</Text>
                   </View>
-                  <Text
-                    style={[
-                      styles.stageCount,
-                      { color: reached ? s.accent : 'rgba(255,255,255,0.3)' },
-                    ]}
-                  >
-                    {reached ? `${usedInMonth}/${MONTH_DAYS[s.month - 1]}` : '🔒'}
+                  <Text style={[styles.stageCount, { color: s.accent }]}>
+                    {usedInMonth}/{MONTH_DAYS[s.month - 1]}
                   </Text>
-                </View>
+                </Pressable>
               );
             }}
             ListFooterComponent={
@@ -448,6 +468,7 @@ function Main() {
   const [listVisible, setListVisible] = useState(false);
   const [listTab, setListTab] = useState<'history' | 'favs'>('history');
   const [journeyVisible, setJourneyVisible] = useState(false);
+  const [showHint, setShowHint] = useState(false);
   const cardAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -485,35 +506,37 @@ function Main() {
 
   const started = !!state.startDate;
   const day = started ? dayNumber(state.startDate!) : 1;
-  const month = monthForDay(day);
+  // 玩家自由选择主题；未选择时默认跟随真实日期所在的月份
+  const month =
+    state.selectedMonth != null && state.selectedMonth >= 1 && state.selectedMonth <= 12
+      ? state.selectedMonth
+      : monthForDay(day);
   const stage = stageForMonth(month);
   const usedSet = new Set(state.used);
   const monthPool = ALL_TOPICS.filter((t) => t.month === month && !usedSet.has(t.id));
-  // 当月话题抽完后，可回捞之前月份未抽的情侣话题（第 1 月只属于暧昧篇，不参与回捞）
-  const fallbackPool =
-    month > 1
-      ? ALL_TOPICS.filter((t) => t.month > 1 && t.month <= month && !usedSet.has(t.id))
-      : [];
-  const drawable = monthPool.length > 0 ? monthPool : fallbackPool;
   const currentTopic = state.lastTopicId != null ? topicById(state.lastTopicId) ?? null : null;
 
+  const selectMonth = (m: number) => {
+    if (m === month) return;
+    haptic('light');
+    setNotice(null);
+    update({ ...state, selectedMonth: m });
+  };
+
   const draw = () => {
-    if (drawable.length === 0) {
+    if (monthPool.length === 0) {
       haptic('light');
       animateCard(() => {
-        setNotice(
-          month === 1
-            ? '本月 31 个暧昧话题已全部聊完 🌙\n下个月将解锁情侣篇话题'
-            : '当前阶段的话题已全部聊完 💯\n等待下个月解锁新话题吧'
-        );
+        setNotice('「' + stage.name + '」的话题已经全部聊完 ✨\n试试切换其他主题吧');
         update({ ...state, lastTopicId: null });
       });
       return;
     }
     haptic('medium');
-    const pick = drawable[Math.floor(Math.random() * drawable.length)];
+    const pick = monthPool[Math.floor(Math.random() * monthPool.length)];
     animateCard(() => {
       setNotice(null);
+      setShowHint(false);
       update({
         ...state,
         used: [...state.used, pick.id],
@@ -565,12 +588,38 @@ function Main() {
             />
           </View>
 
+          {/* 主题选择器（自由切换，无锁定） */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.themeScroll}
+            contentContainerStyle={styles.themeScrollContent}
+          >
+            {STAGES.map((s) => {
+              const active = s.month === month;
+              return (
+                <Pressable
+                  key={s.month}
+                  onPress={() => selectMonth(s.month)}
+                  style={[
+                    styles.themeChip,
+                    active && { backgroundColor: s.accent + '33', borderColor: s.accent },
+                  ]}
+                >
+                  <Text style={[styles.themeChipMonth, active && { color: s.accent }]}>
+                    {s.month}月
+                  </Text>
+                  <Text style={[styles.themeChipName, active && { color: '#fff' }]}>
+                    {s.name}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+
           {/* 阶段信息 */}
           <View style={styles.stageBanner}>
             <Chip label={month === 1 ? '暧昧篇' : '情侣篇'} color={stage.accent} />
-            <Text style={styles.stageBannerTitle}>
-              第 {month} 月 · {stage.name}
-            </Text>
             <Text style={styles.stageBannerSub}>{stage.subtitle}</Text>
           </View>
 
@@ -581,7 +630,12 @@ function Main() {
               notice={notice}
               accent={stage.accent}
               isFav={currentTopic ? state.favs.includes(currentTopic.id) : false}
+              showHint={showHint}
               onToggleFav={() => currentTopic && toggleFav(currentTopic.id)}
+              onToggleHint={() => {
+                haptic('light');
+                setShowHint((v) => !v);
+              }}
               anim={cardAnim}
             />
           </View>
@@ -602,10 +656,8 @@ function Main() {
             </ScalePressable>
             <Text style={styles.remainText}>
               {monthPool.length > 0
-                ? `本月还有 ${monthPool.length} 个话题待解锁`
-                : month > 1 && fallbackPool.length > 0
-                ? `本月已聊完，可回顾往月剩余 ${fallbackPool.length} 个话题`
-                : '当前阶段话题已全部聊完，等待下月解锁'}
+                ? `「${stage.name}」还有 ${monthPool.length} 个话题待抽取`
+                : `「${stage.name}」已聊完，左右滑动切换其他主题`}
             </Text>
           </View>
 
@@ -645,6 +697,8 @@ function Main() {
         visible={journeyVisible}
         state={state}
         day={day}
+        month={month}
+        onSelectMonth={selectMonth}
         onClose={() => setJourneyVisible(false)}
         onReset={() => {
           setJourneyVisible(false);
@@ -748,8 +802,28 @@ const styles = StyleSheet.create({
   },
   progressFill: { height: 4, borderRadius: 2 },
 
-  stageBanner: { paddingHorizontal: 24, marginTop: 12, gap: 5 },
-  stageBannerTitle: { color: '#fff', fontSize: 23, fontWeight: '800', letterSpacing: 1 },
+  themeScroll: { flexGrow: 0, marginTop: 14 },
+  themeScrollContent: { paddingHorizontal: 24, gap: 10 },
+  themeChip: {
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    gap: 2,
+  },
+  themeChipMonth: { color: 'rgba(255,255,255,0.5)', fontSize: 10, fontWeight: '700' },
+  themeChipName: { color: 'rgba(255,255,255,0.75)', fontSize: 13, fontWeight: '700' },
+
+  stageBanner: {
+    paddingHorizontal: 24,
+    marginTop: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
   stageBannerSub: { color: 'rgba(255,255,255,0.6)', fontSize: 13, letterSpacing: 2 },
 
   // 卡片
@@ -797,7 +871,27 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   cardMeta: { color: 'rgba(255,255,255,0.5)', fontSize: 12, letterSpacing: 1.5 },
+  cardActions: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   favIcon: { fontSize: 26 },
+
+  hintBox: {
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 12,
+    marginTop: 4,
+    marginBottom: 4,
+    backgroundColor: 'rgba(0,0,0,0.18)',
+    gap: 6,
+  },
+  hintTitle: { fontSize: 12, fontWeight: '800', letterSpacing: 1 },
+  hintText: { color: 'rgba(255,255,255,0.85)', fontSize: 13, lineHeight: 21 },
+  hintBtn: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+  },
+  hintBtnText: { fontSize: 12, fontWeight: '700' },
 
   remainText: {
     color: 'rgba(255,255,255,0.55)',
