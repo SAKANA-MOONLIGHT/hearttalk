@@ -6,7 +6,25 @@
 
 Android v1.2.0 uses a new build project and package name, `com.sakanamoonlight.hearttalk`, so it can be installed alongside older versions. History and favorites remain in the old app and are not automatically imported.
 
-A random conversation game for couples: **366 days and 366 unique questions** to help you get to know each other.
+A random conversation game for couples and two people getting to know each other: **366 days and 366 unique questions** to help you grow closer.
+
+## Make it easier to keep the conversation going
+
+You want to know someone better, but cannot find a natural way to start. Or you talk every day, yet rarely get beyond “How was your day?” HeartTalk offers a concrete starting point for those moments, giving an everyday conversation a chance to become a deeper understanding of each other.
+
+| Who it is for | What can feel difficult | How HeartTalk can help |
+| --- | --- | --- |
+| Two people getting to know each other | You want to show interest without awkward silences or making the conversation feel like an interview | Light questions and opening hints give you an easy way in, with room for both people to share their stories |
+| Long-term couples | You know each other's routines, but conversations have become daily updates and you rarely hear a new perspective | Questions about memories, feelings, values and future hopes offer chances to discover something you have never discussed |
+| Long-distance or busy partners | Time together is limited, and calls can run out of things to say after the schedule updates | Choose one question for your time together, spending less of it searching for a topic and more of it sharing |
+| Partners with different ways or paces of opening up | One person wants a deeper conversation while the other is unsure where to begin or is not ready yet | Choose freely from 12 themes and begin with something you both want to discuss, at a pace that feels comfortable |
+| Two people who prefer different languages | A good question can still be hard to join in with when its wording is unfamiliar | Switch between Chinese, English, Japanese and Korean to understand the same question in a more familiar language |
+
+**Spend less effort finding something to talk about, and make more room to know each other.** Questions, opening hints, favorites and history help you start and revisit conversations, leaving more attention for responding and listening.
+
+On a date, a walk, a long-distance call or before bed, one question you both want to explore is enough. Use the 366 questions at your own pace: change themes, skip anything you do not feel like answering, or save a question for another day.
+
+## A 366-day conversation journey
 
 - **Month 1, days 1–31:** 31 flirty questions about first impressions, attraction and growing closer.
 - **Months 2–12, days 32–366:** 335 questions for couples, with themes that gradually deepen.
