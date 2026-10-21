@@ -25,6 +25,13 @@ export const DEFAULT_STATE: AppState = {
 };
 
 const KEY = '@hearttalk/state/v1';
+let pendingWrite: Promise<void> = Promise.resolve();
+
+function enqueueWrite(operation: () => Promise<void>): Promise<void> {
+  const result = pendingWrite.catch(() => {}).then(operation);
+  pendingWrite = result;
+  return result;
+}
 
 export async function loadState(): Promise<AppState> {
   try {
@@ -38,19 +45,12 @@ export async function loadState(): Promise<AppState> {
 }
 
 export async function saveState(state: AppState): Promise<void> {
-  try {
-    await AsyncStorage.setItem(KEY, JSON.stringify(state));
-  } catch {
-    // 存储失败时静默处理，下次操作会重试
-  }
+  const snapshot = JSON.stringify(state);
+  await enqueueWrite(() => AsyncStorage.setItem(KEY, snapshot));
 }
 
 export async function resetState(): Promise<void> {
-  try {
-    await AsyncStorage.removeItem(KEY);
-  } catch {
-    // ignore
-  }
+  await enqueueWrite(() => AsyncStorage.removeItem(KEY));
 }
 
 export function todayStr(): string {

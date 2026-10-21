@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
+  AccessibilityInfo,
+  ActivityIndicator,
   Animated,
   Easing,
   FlatList,
@@ -11,6 +13,7 @@ import {
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -19,24 +22,24 @@ import * as Haptics from 'expo-haptics';
 import {
   ALL_TOPICS,
   MONTH_DAYS,
-  STAGES,
   TOTAL_DAYS,
   Topic,
-  hintForTopic,
   monthForDay,
-  stageForMonth,
   topicById,
 } from './lib/topics';
 import {
   AppState,
   DEFAULT_STATE,
   dayNumber,
-  formatDateCN,
   loadState,
-  resetState,
   saveState,
   todayStr,
 } from './lib/storage';
+import { I18nProvider, useI18n } from './lib/i18n/context';
+import { formatDate } from './lib/i18n/strings';
+import { LanguagePicker } from './components/LanguagePicker';
+
+const USE_NATIVE_DRIVER = Platform.OS !== 'web';
 
 function haptic(kind: 'light' | 'medium' | 'success') {
   if (Platform.OS === 'web') return;
@@ -59,22 +62,27 @@ function ScalePressable({
   onPress,
   style,
   containerStyle,
+  disabled = false,
   children,
 }: {
   onPress: () => void;
   style?: object;
   containerStyle?: object;
+  disabled?: boolean;
   children: React.ReactNode;
 }) {
   const scale = useRef(new Animated.Value(1)).current;
   return (
     <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ disabled }}
+      disabled={disabled}
       style={containerStyle}
       onPressIn={() =>
-        Animated.spring(scale, { toValue: 0.94, useNativeDriver: true, speed: 40 }).start()
+        Animated.spring(scale, { toValue: 0.94, useNativeDriver: USE_NATIVE_DRIVER, speed: 40 }).start()
       }
       onPressOut={() =>
-        Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 40 }).start()
+        Animated.spring(scale, { toValue: 1, useNativeDriver: USE_NATIVE_DRIVER, speed: 40 }).start()
       }
       onPress={onPress}
     >
@@ -93,18 +101,20 @@ function Chip({ label, color }: { label: string; color: string }) {
 
 // ---------- 主题选择器 ----------
 
-const THEME_CHIP_STEP = 92; // 估算的单个主题块宽度（含间距），用于自动定位
-
 function ThemeSelector({ month, onSelect }: { month: number; onSelect: (m: number) => void }) {
+  const { stages, t, locale } = useI18n();
   const scrollRef = useRef<ScrollView>(null);
+  const positions = useRef<Record<number, number>>({});
+  const [layoutVersion, setLayoutVersion] = useState(0);
+  const { fontScale } = useWindowDimensions();
 
   // 自动滚动到当前选中的主题，保证它始终可见
   useEffect(() => {
     scrollRef.current?.scrollTo({
-      x: Math.max(0, (month - 1) * THEME_CHIP_STEP - 110),
+      x: Math.max(0, (positions.current[month] ?? 0) - 24),
       animated: true,
     });
-  }, [month]);
+  }, [month, locale, fontScale, layoutVersion]);
 
   return (
     <ScrollView
@@ -114,11 +124,22 @@ function ThemeSelector({ month, onSelect }: { month: number; onSelect: (m: numbe
       style={styles.themeScroll}
       contentContainerStyle={styles.themeScrollContent}
     >
-      {STAGES.map((s) => {
+      {stages.map((s) => {
         const active = s.month === month;
         return (
           <Pressable
             key={s.month}
+            accessibilityRole="button"
+            accessibilityState={{ selected: active }}
+            aria-pressed={active}
+            accessibilityLabel={`${t('month', { n: s.month })}, ${s.name}`}
+            onLayout={(event) => {
+              const x = event.nativeEvent.layout.x;
+              if (positions.current[s.month] !== x) {
+                positions.current[s.month] = x;
+                setLayoutVersion((value) => value + 1);
+              }
+            }}
             onPress={() => onSelect(s.month)}
             style={[
               styles.themeChip,
@@ -127,13 +148,11 @@ function ThemeSelector({ month, onSelect }: { month: number; onSelect: (m: numbe
           >
             <Text
               style={[styles.themeChipMonth, active && { color: s.accent }]}
-              maxFontSizeMultiplier={1.2}
             >
-              {s.month}月
+              {t('month', { n: s.month })}
             </Text>
             <Text
               style={[styles.themeChipName, active && { color: '#fff' }]}
-              maxFontSizeMultiplier={1.2}
             >
               {s.name}
             </Text>
@@ -147,33 +166,39 @@ function ThemeSelector({ month, onSelect }: { month: number; onSelect: (m: numbe
 // ---------- 欢迎页 ----------
 
 function WelcomeScreen({ onStart }: { onStart: () => void }) {
+  const { t } = useI18n();
   const insets = useSafeAreaInsets();
   const fade = useRef(new Animated.Value(0)).current;
   const float = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    let active = true;
     Animated.timing(fade, {
       toValue: 1,
       duration: 900,
       easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
+      useNativeDriver: USE_NATIVE_DRIVER,
     }).start();
-    Animated.loop(
+    const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(float, {
           toValue: 1,
           duration: 1800,
           easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
+          useNativeDriver: USE_NATIVE_DRIVER,
         }),
         Animated.timing(float, {
           toValue: 0,
           duration: 1800,
           easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
+          useNativeDriver: USE_NATIVE_DRIVER,
         }),
       ])
-    ).start();
+    );
+    void AccessibilityInfo.isReduceMotionEnabled().then((reduced) => {
+      if (active && !reduced) loop.start();
+    });
+    return () => { active = false; loop.stop(); fade.stopAnimation(); };
   }, [fade, float]);
 
   const ty = float.interpolate({ inputRange: [0, 1], outputRange: [0, -12] });
@@ -184,21 +209,22 @@ function WelcomeScreen({ onStart }: { onStart: () => void }) {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.welcome,
-          { paddingTop: insets.top + 48, paddingBottom: insets.bottom + 28 },
+          { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 28 },
         ]}
       >
+      <View style={{ alignSelf: 'flex-end', marginBottom: 28 }}><LanguagePicker /></View>
       <Animated.View style={[styles.logoCircle, { transform: [{ translateY: ty }] }]}>
         <Text style={styles.logoEmoji}>💞</Text>
       </Animated.View>
-      <Text style={styles.welcomeTitle}>心动话题</Text>
-      <Text style={styles.welcomeSlogan}>366 天 · 从暧昧到相守的对话之旅</Text>
+      <Text style={styles.welcomeTitle}>{t('appName')}</Text>
+      <Text style={styles.welcomeSlogan}>{t('slogan')}</Text>
 
       <View style={styles.featureBox}>
         {[
-          ['🌙', '暧昧篇 31 题 + 情侣篇 335 题，共 366 个话题'],
-          ['🎯', '12 个主题阶段自由切换，想聊哪个聊哪个'],
-          ['🎲', '随机抽取永不重复，每题配开场提示'],
-          ['📖', '自动保存历史与收藏，记录你们的故事'],
+          ['🌙', t('featureTopics')],
+          ['🎯', t('featureStages')],
+          ['🎲', t('featureHints')],
+          ['📖', t('featureSave')],
         ].map(([icon, text]) => (
           <View key={text} style={styles.featureRow}>
             <Text style={styles.featureIcon}>{icon}</Text>
@@ -207,8 +233,9 @@ function WelcomeScreen({ onStart }: { onStart: () => void }) {
         ))}
       </View>
 
-      <View style={{ flex: 1 }} />
+      <View style={{ flex: 1, minHeight: 28 }} />
       <ScalePressable
+        containerStyle={{ alignSelf: 'stretch' }}
         style={styles.primaryBtn}
         onPress={() => {
           haptic('success');
@@ -221,12 +248,12 @@ function WelcomeScreen({ onStart }: { onStart: () => void }) {
           end={{ x: 1, y: 1 }}
           style={styles.primaryBtnInner}
         >
-          <Text style={styles.primaryBtnText} maxFontSizeMultiplier={1.2}>
-            开启我们的 366 天 ✨
+          <Text style={styles.primaryBtnText}>
+            {t('start')}
           </Text>
         </LinearGradient>
       </ScalePressable>
-        <Text style={styles.welcomeHint}>今天就是旅程的第 1 天</Text>
+        <Text style={styles.welcomeHint}>{t('welcomeHint')}</Text>
       </ScrollView>
     </Animated.View>
   );
@@ -253,6 +280,7 @@ function TopicCard({
   onToggleHint: () => void;
   anim: Animated.Value;
 }) {
+  const { t, stageForMonth, topicText, hintForTopic } = useI18n();
   const stage = topic ? stageForMonth(topic.month) : null;
   // 卡片内部配色跟随话题自己所属的主题，避免切换主题后颜色错乱
   const cardAccent = stage ? stage.accent : accent;
@@ -266,19 +294,23 @@ function TopicCard({
       <Text style={[styles.quoteMark, { color: cardAccent }]}>“</Text>
       {topic && stage ? (
         <>
-          <Text style={styles.cardText}>{topic.text}</Text>
+          <Text style={styles.cardText} selectable>{topicText(topic)}</Text>
           {showHint && (
             <View style={[styles.hintBox, { borderColor: cardAccent + '55' }]}>
-              <Text style={[styles.hintTitle, { color: cardAccent }]}>💡 如何自然开启</Text>
+              <Text style={[styles.hintTitle, { color: cardAccent }]}>{t('hintTitle')}</Text>
               <Text style={styles.hintText}>{hintForTopic(topic)}</Text>
             </View>
           )}
           <View style={styles.cardFooter}>
             <Text style={styles.cardMeta}>
-              {stage.name} · 第 {topic.indexInMonth} 题
+              {stage.name} · {t('question', { n: topic.indexInMonth })}
             </Text>
             <View style={styles.cardActions}>
               <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ expanded: showHint }}
+                aria-expanded={showHint}
+                accessibilityLabel={t(showHint ? 'hideHint' : 'hint')}
                 hitSlop={8}
                 onPress={onToggleHint}
                 style={[
@@ -287,11 +319,12 @@ function TopicCard({
                   showHint && { backgroundColor: cardAccent + '26' },
                 ]}
               >
-                <Text style={[styles.hintBtnText, { color: cardAccent }]} maxFontSizeMultiplier={1.2}>
-                  {showHint ? '收起提示' : '💡 提示'}
+                <Text style={[styles.hintBtnText, { color: cardAccent }]}>
+                  {t(showHint ? 'hideHint' : 'hint')}
                 </Text>
               </Pressable>
-              <Pressable hitSlop={12} onPress={onToggleFav}>
+              <Pressable accessibilityRole="button" accessibilityLabel={t(isFav ? 'unsave' : 'save')}
+                accessibilityState={{ selected: isFav }} aria-pressed={isFav} style={styles.favButton} onPress={onToggleFav}>
                 <Text
                   style={[styles.favIcon, { color: isFav ? '#ff4f81' : 'rgba(255,255,255,0.45)' }]}
                 >
@@ -304,10 +337,10 @@ function TopicCard({
       ) : (
         <>
           <Text style={styles.cardPlaceholder}>
-            {notice ?? '点击下方按钮\n抽取属于你们的话题'}
+            {notice ?? t('placeholder')}
           </Text>
           <View style={styles.cardFooter}>
-            <Text style={styles.cardMeta}>心动话题 · HeartTalk</Text>
+            <Text style={styles.cardMeta}>{t('appName')}</Text>
           </View>
         </>
       )}
@@ -330,6 +363,7 @@ function ListModal({
   onClose: () => void;
   onToggleFav: (id: number) => void;
 }) {
+  const { t, locale, topicText, stageForMonth } = useI18n();
   const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<'history' | 'favs'>(initialTab);
   useEffect(() => {
@@ -344,54 +378,52 @@ function ListModal({
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.modalMask}>
-        <Pressable style={{ flex: 1 }} onPress={onClose} />
-        <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 12 }]}>
+        <Pressable style={{ flex: 1 }} accessibilityRole="button" accessibilityLabel={t('close')} onPress={onClose} />
+        <View accessibilityViewIsModal style={[styles.modalSheet, { paddingBottom: insets.bottom + 12 }]}>
           <View style={styles.modalHandle} />
           <View style={styles.tabRow}>
             {(
               [
-                ['history', `历史记录 ${state.history.length}`],
-                ['favs', `我的收藏 ${state.favs.length}`],
+                ['history', `${t('history')} (${state.history.length})`],
+                ['favs', `${t('favorites')} (${state.favs.length})`],
               ] as const
             ).map(([key, label]) => (
-              <Pressable key={key} onPress={() => setTab(key)} style={styles.tabBtn}>
+              <Pressable key={key} accessibilityRole="tab" accessibilityState={{ selected: tab === key }} aria-selected={tab === key} onPress={() => setTab(key)} style={styles.tabBtn}>
                 <Text style={[styles.tabText, tab === key && styles.tabTextActive]}>{label}</Text>
                 {tab === key && <View style={styles.tabUnderline} />}
               </Pressable>
             ))}
-            <View style={{ flex: 1 }} />
-            <Pressable hitSlop={10} onPress={onClose}>
+            <Pressable accessibilityRole="button" accessibilityLabel={t('close')} style={styles.favButton} onPress={onClose}>
               <Text style={styles.modalClose}>✕</Text>
             </Pressable>
           </View>
 
           {data.length === 0 ? (
-            <View style={styles.emptyBox}>
+            <ScrollView contentContainerStyle={styles.emptyBox}>
               <Text style={styles.emptyEmoji}>{tab === 'history' ? '🫧' : '🤍'}</Text>
               <Text style={styles.emptyText}>
-                {tab === 'history'
-                  ? '还没有抽过话题，去抽一个吧'
-                  : '点击话题卡片右下角的 ♡ 收藏喜欢的话题'}
+                {t(tab === 'history' ? 'emptyHistory' : 'emptyFavorites')}
               </Text>
-            </View>
+            </ScrollView>
           ) : (
             <FlatList
               data={data}
+              extraData={`${locale}-${state.favs.join(',')}`}
               keyExtractor={(item, i) => `${item.id}-${i}`}
               style={{ flexShrink: 1 }}
               contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 20 }}
               renderItem={({ item }) => {
-                const t = topicById(item.id);
-                if (!t) return null;
-                const stage = stageForMonth(t.month);
-                const fav = state.favs.includes(t.id);
+                const topicItem = topicById(item.id);
+                if (!topicItem) return null;
+                const stage = stageForMonth(topicItem.month);
+                const fav = state.favs.includes(topicItem.id);
                 return (
                   <View style={styles.listItem}>
                     <View style={styles.listItemTop}>
-                      <Chip label={`第${t.month}月 · ${stage.name}`} color={stage.accent} />
+                      <Chip label={`${t('month', { n: topicItem.month })} · ${stage.name}`} color={stage.accent} />
                       {!!item.date && <Text style={styles.listDate}>{item.date}</Text>}
-                      <View style={{ flex: 1 }} />
-                      <Pressable hitSlop={10} onPress={() => onToggleFav(t.id)}>
+                      <Pressable accessibilityRole="button" accessibilityLabel={t(fav ? 'unsave' : 'save')}
+                        accessibilityState={{ selected: fav }} aria-pressed={fav} style={styles.favButton} onPress={() => onToggleFav(topicItem.id)}>
                         <Text
                           style={[
                             styles.listFav,
@@ -402,7 +434,7 @@ function ListModal({
                         </Text>
                       </Pressable>
                     </View>
-                    <Text style={styles.listText}>{t.text}</Text>
+                    <Text style={styles.listText}>{topicText(topicItem)}</Text>
                   </View>
                 );
               }}
@@ -433,36 +465,40 @@ function JourneyModal({
   onClose: () => void;
   onReset: () => void;
 }) {
+  const { t, locale, stages } = useI18n();
   const insets = useSafeAreaInsets();
+  const [resetVisible, setResetVisible] = useState(false);
+  useEffect(() => { if (!visible) setResetVisible(false); }, [visible]);
 
   const confirmReset = () => {
-    Alert.alert('重新开始旅程？', '将清空所有历史、收藏与进度，从第 1 天重新开始。', [
-      { text: '取消', style: 'cancel' },
-      { text: '确认重置', style: 'destructive', onPress: onReset },
+    if (Platform.OS === 'web') { setResetVisible(true); return; }
+    Alert.alert(t('resetTitle'), t('resetBody'), [
+      { text: t('cancel'), style: 'cancel' },
+      { text: t('confirmReset'), style: 'destructive', onPress: onReset },
     ]);
   };
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.modalMask}>
-        <Pressable style={{ flex: 1 }} onPress={onClose} />
-        <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 16 }]}>
+        <Pressable style={{ flex: 1 }} accessibilityRole="button" accessibilityLabel={t('close')} onPress={onClose} />
+        <View accessibilityViewIsModal style={[styles.modalSheet, { paddingBottom: insets.bottom + 16 }]}>
           <View style={styles.modalHandle} />
           <View style={styles.tabRow}>
-            <Text style={styles.journeyTitle}>🧭 我们的旅程</Text>
-            <View style={{ flex: 1 }} />
-            <Pressable hitSlop={10} onPress={onClose}>
+            <Text style={styles.journeyTitle}>{t('journey')}</Text>
+            <Pressable accessibilityRole="button" accessibilityLabel={t('close')} style={styles.favButton} onPress={onClose}>
               <Text style={styles.modalClose}>✕</Text>
             </Pressable>
           </View>
 
+          <ScrollView contentContainerStyle={{ paddingBottom: 8 }}>
           <View style={styles.statRow}>
             {(
               [
-                [`${day}`, '当前天数'],
-                [`${state.used.length}`, '已聊话题'],
-                [`${state.favs.length}`, '收藏话题'],
-                [`${TOTAL_DAYS - state.used.length}`, '待解锁'],
+                [`${day}`, t('days')],
+                [`${state.used.length}`, t('discussed')],
+                [`${state.favs.length}`, t('saved')],
+                [`${TOTAL_DAYS - state.used.length}`, t('left')],
               ] as const
             ).map(([num, label]) => (
               <View key={label} style={styles.statBox}>
@@ -472,18 +508,19 @@ function JourneyModal({
             ))}
           </View>
 
-          <FlatList
-            data={STAGES}
-            keyExtractor={(s) => String(s.month)}
-            style={{ flexShrink: 1 }}
-            contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 8 }}
-            renderItem={({ item: s }) => {
+          <View style={{ paddingHorizontal: 20 }}>
+            {stages.map((s) => {
               const current = s.month === month;
               const usedInMonth = state.used.filter(
                 (id) => ALL_TOPICS[id]?.month === s.month
               ).length;
               return (
                 <Pressable
+                  key={s.month}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: current }}
+                  aria-pressed={current}
+                  accessibilityHint={t('chooseStage')}
                   style={[styles.stageRow, current && styles.stageRowCurrent]}
                   onPress={() => {
                     onSelectMonth(s.month);
@@ -493,28 +530,38 @@ function JourneyModal({
                   <View style={[styles.stageDot, { backgroundColor: s.accent }]} />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.stageName}>
-                      第 {s.month} 月 · {s.name}
-                      {s.month === 1 ? '（暧昧篇）' : '（情侣篇）'}
+                      {t('month', { n: s.month })} · {s.name}
                     </Text>
-                    <Text style={styles.stageSub}>{s.subtitle} · 点击切换到此主题</Text>
+                    <Text style={styles.stageSub}>{s.subtitle}</Text>
                   </View>
                   <Text style={[styles.stageCount, { color: s.accent }]}>
                     {usedInMonth}/{MONTH_DAYS[s.month - 1]}
                   </Text>
                 </Pressable>
               );
-            }}
-            ListFooterComponent={
+            })}
               <View>
                 <Text style={styles.journeyStart}>
-                  旅程始于 {state.startDate ? formatDateCN(state.startDate) : '—'}
+                  {t('started', { date: state.startDate ? formatDate(state.startDate, locale) : '—' })}
                 </Text>
-                <Pressable style={styles.resetBtn} onPress={confirmReset}>
-                  <Text style={styles.resetText}>重新开始旅程</Text>
+                <Pressable accessibilityRole="button" style={styles.resetBtn} onPress={confirmReset}>
+                  <Text style={styles.resetText}>{t('reset')}</Text>
                 </Pressable>
+                {resetVisible && <View style={styles.hintBox}>
+                  <Text style={styles.stageName}>{t('resetTitle')}</Text>
+                  <Text style={styles.hintText}>{t('resetBody')}</Text>
+                  <View style={styles.cardActions}>
+                    <Pressable style={styles.hintBtn} accessibilityRole="button" onPress={() => setResetVisible(false)}>
+                      <Text style={styles.hintText}>{t('cancel')}</Text>
+                    </Pressable>
+                    <Pressable style={styles.resetBtn} accessibilityRole="button" onPress={onReset}>
+                      <Text style={styles.resetText}>{t('confirmReset')}</Text>
+                    </Pressable>
+                  </View>
+                </View>}
               </View>
-            }
-          />
+          </View>
+          </ScrollView>
         </View>
       </View>
     </Modal>
@@ -524,9 +571,17 @@ function JourneyModal({
 // ---------- 主界面 ----------
 
 function Main() {
+  const { t, stageForMonth, ready, saveError: languageSaveError } = useI18n();
   const insets = useSafeAreaInsets();
+  const { width, fontScale } = useWindowDimensions();
   const [state, setState] = useState<AppState | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const stateRef = useRef<AppState | null>(null);
+  const [noticeMonth, setNotice] = useState<number | null>(null);
+  const [saveError, setSaveError] = useState(false);
+  const [drawing, setDrawing] = useState(false);
+  const drawingRef = useRef(false);
+  const mounted = useRef(true);
+  const reducedMotion = useRef(false);
   const [listVisible, setListVisible] = useState(false);
   const [listTab, setListTab] = useState<'history' | 'favs'>('history');
   const [journeyVisible, setJourneyVisible] = useState(false);
@@ -534,36 +589,43 @@ function Main() {
   const cardAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    void loadState().then(setState);
+    void loadState().then((loaded) => { stateRef.current = loaded; setState(loaded); });
+    void AccessibilityInfo.isReduceMotionEnabled().then((value) => { reducedMotion.current = value; });
+    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', (value) => { reducedMotion.current = value; });
+    mounted.current = true;
+    return () => { mounted.current = false; cardAnim.stopAnimation(); subscription.remove(); };
   }, []);
 
   const update = useCallback((next: AppState) => {
+    stateRef.current = next;
     setState(next);
-    void saveState(next);
+    void saveState(next).then(() => setSaveError(false)).catch(() => setSaveError(true));
   }, []);
 
   const animateCard = useCallback(
     (midway: () => void) => {
       Animated.timing(cardAnim, {
         toValue: 0,
-        duration: 160,
+        duration: reducedMotion.current ? 0 : 160,
         easing: Easing.in(Easing.cubic),
-        useNativeDriver: true,
-      }).start(() => {
+        useNativeDriver: USE_NATIVE_DRIVER,
+      }).start(({ finished }) => {
+        if (!finished || !mounted.current) return;
         midway();
         Animated.timing(cardAnim, {
           toValue: 1,
-          duration: 420,
+          duration: reducedMotion.current ? 0 : 420,
           easing: Easing.out(Easing.back(1.4)),
-          useNativeDriver: true,
-        }).start();
+          useNativeDriver: USE_NATIVE_DRIVER,
+        }).start(() => { drawingRef.current = false; setDrawing(false); });
       });
     },
     [cardAnim]
   );
 
-  if (!state) {
-    return <View style={{ flex: 1, backgroundColor: '#1a1033' }} />;
+  if (!state || !ready) {
+    return <View style={styles.loading}><ActivityIndicator color="#ff9ec7" />
+      <Text style={styles.hintText}>{t('loading')}</Text></View>;
   }
 
   const started = !!state.startDate;
@@ -574,6 +636,7 @@ function Main() {
       ? state.selectedMonth
       : monthForDay(day);
   const stage = stageForMonth(month);
+  const notice = noticeMonth === null ? null : t('complete', { name: stageForMonth(noticeMonth).name });
   const usedSet = new Set(state.used);
   const monthPool = ALL_TOPICS.filter((t) => t.month === month && !usedSet.has(t.id));
   const currentTopic = state.lastTopicId != null ? topicById(state.lastTopicId) ?? null : null;
@@ -586,11 +649,14 @@ function Main() {
   };
 
   const draw = () => {
+    if (drawingRef.current) return;
+    drawingRef.current = true;
+    setDrawing(true);
     if (monthPool.length === 0) {
       haptic('light');
       animateCard(() => {
-        setNotice('「' + stage.name + '」的话题已经全部聊完 ✨\n试试切换其他主题吧');
-        update({ ...state, lastTopicId: null });
+        setNotice(month);
+        if (stateRef.current) update({ ...stateRef.current, lastTopicId: null });
       });
       return;
     }
@@ -599,12 +665,11 @@ function Main() {
     animateCard(() => {
       setNotice(null);
       setShowHint(false);
-      update({
-        ...state,
-        used: [...state.used, pick.id],
-        history: [{ id: pick.id, date: todayStr() }, ...state.history],
-        lastTopicId: pick.id,
-      });
+      const latest = stateRef.current;
+      if (latest) {
+        update({ ...latest, used: [...latest.used, pick.id],
+          history: [{ id: pick.id, date: todayStr() }, ...latest.history], lastTopicId: pick.id });
+      }
     });
   };
 
@@ -621,21 +686,27 @@ function Main() {
   return (
     <LinearGradient colors={stage.gradient} style={{ flex: 1 }}>
       <StatusBar style="light" />
+      {(saveError || languageSaveError) && <View style={[styles.errorBanner, { paddingTop: insets.top + 8 }]}>
+        <Text accessibilityRole="alert" style={styles.hintText}>{t('storageError')}</Text>
+        {saveError && <Pressable accessibilityRole="button" onPress={() => update(state)} style={styles.hintBtn}>
+          <Text style={styles.hintText}>{t('retry')}</Text></Pressable>}
+      </View>}
       {!started ? (
         <WelcomeScreen onStart={() => update({ ...state, startDate: todayStr() })} />
       ) : (
-        <View style={{ flex: 1, paddingTop: insets.top + 12, paddingBottom: insets.bottom + 16 }}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={[
+          styles.mainContent, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 16 },
+        ]}>
           {/* 顶部栏 */}
           <View style={styles.header}>
-            <View>
-              <Text style={styles.appName}>心动话题</Text>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={styles.appName}>{t('appName')}</Text>
               <Text style={styles.dayText}>
-                第 <Text style={[styles.dayNum, { color: stage.accent }]}>{day}</Text> /{' '}
-                {TOTAL_DAYS} 天
+                {t('day', { n: day })}
               </Text>
             </View>
-            <View style={{ flex: 1 }} />
-            <Pressable hitSlop={10} style={styles.iconBtn} onPress={() => setJourneyVisible(true)}>
+            <LanguagePicker />
+            <Pressable accessibilityRole="button" accessibilityLabel={t('journey')} style={styles.iconBtn} onPress={() => setJourneyVisible(true)}>
               <Text style={styles.iconBtnText}>🧭</Text>
             </Pressable>
           </View>
@@ -655,17 +726,15 @@ function Main() {
 
           {/* 阶段信息 */}
           <View style={styles.stageBanner}>
-            <Chip label={month === 1 ? '暧昧篇' : '情侣篇'} color={stage.accent} />
-            <Text style={styles.stageBannerSub} numberOfLines={1}>
+            <Chip label={t(month === 1 ? 'flirting' : 'couple')} color={stage.accent} />
+            <Text style={styles.stageBannerSub}>
               {stage.subtitle}
             </Text>
           </View>
 
           {/* 话题卡片（可滚动：内容超出时自动滚动而不是被裁切） */}
-          <ScrollView
+          <View
             style={styles.cardWrap}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.cardScrollContent}
           >
             <TopicCard
               topic={notice ? null : currentTopic}
@@ -680,35 +749,35 @@ function Main() {
               }}
               anim={cardAnim}
             />
-          </ScrollView>
+          </View>
 
           {/* 抽取按钮 */}
           <View style={{ paddingHorizontal: 24 }}>
-            <ScalePressable style={styles.primaryBtn} onPress={draw}>
+            <ScalePressable style={styles.primaryBtn} disabled={drawing} onPress={draw}>
               <LinearGradient
                 colors={['#ff7eb3', '#ff4f81']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.primaryBtnInner}
               >
-                <Text style={styles.primaryBtnText} maxFontSizeMultiplier={1.2}>
-                  {currentTopic ? '🎲 再抽一个话题' : '🎲 抽取话题'}
+                <Text style={styles.primaryBtnText}>
+                  {t(currentTopic ? 'drawAgain' : 'draw')}
                 </Text>
               </LinearGradient>
             </ScalePressable>
             <Text style={styles.remainText}>
               {monthPool.length > 0
-                ? `「${stage.name}」还有 ${monthPool.length} 个话题待抽取`
-                : `「${stage.name}」已聊完，左右滑动切换其他主题`}
+                ? t('remaining', { n: monthPool.length })
+                : t('exhausted')}
             </Text>
           </View>
 
           {/* 底部操作 */}
-          <View style={styles.bottomRow}>
+          <View style={[styles.bottomRow, (width < 350 || fontScale > 1.4) && { flexDirection: 'column' }]}>
             {(
               [
-                ['🕰️', '历史记录', 'history'],
-                ['💖', '我的收藏', 'favs'],
+                ['🕰️', t('history'), 'history'],
+                ['💖', t('favorites'), 'favs'],
               ] as const
             ).map(([icon, label, tab]) => (
               <ScalePressable
@@ -720,16 +789,16 @@ function Main() {
                   setListVisible(true);
                 }}
               >
-                <Text style={styles.bottomBtnIcon} maxFontSizeMultiplier={1.2}>
+                <Text style={styles.bottomBtnIcon}>
                   {icon}
                 </Text>
-                <Text style={styles.bottomBtnText} maxFontSizeMultiplier={1.2} numberOfLines={1}>
+                <Text style={styles.bottomBtnText}>
                   {label}
                 </Text>
               </ScalePressable>
             ))}
           </View>
-        </View>
+        </ScrollView>
       )}
 
       <ListModal
@@ -748,9 +817,10 @@ function Main() {
         onClose={() => setJourneyVisible(false)}
         onReset={() => {
           setJourneyVisible(false);
-          void resetState();
+          if (drawingRef.current) { cardAnim.stopAnimation(); drawingRef.current = false; setDrawing(false); }
           setNotice(null);
-          setState({ ...DEFAULT_STATE });
+          setShowHint(false);
+          update({ ...DEFAULT_STATE });
         }}
       />
     </LinearGradient>
@@ -759,17 +829,21 @@ function Main() {
 
 export default function App() {
   return (
-    <SafeAreaProvider>
+    <I18nProvider><SafeAreaProvider>
       <Main />
-    </SafeAreaProvider>
+    </SafeAreaProvider></I18nProvider>
   );
 }
 
 // ---------- 样式 ----------
 
 const styles = StyleSheet.create({
+  mainContent: { flexGrow: 1, width: '100%', maxWidth: 680, alignSelf: 'center' },
+  loading: { flex: 1, backgroundColor: '#1a1033', alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24 },
+  errorBanner: { backgroundColor: '#492037', padding: 16, gap: 8 },
+  favButton: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   // 欢迎页
-  welcome: { flexGrow: 1, alignItems: 'center', paddingHorizontal: 28 },
+  welcome: { flexGrow: 1, alignItems: 'center', paddingHorizontal: 24, width: '100%', maxWidth: 560, alignSelf: 'center' },
   logoCircle: {
     width: 104,
     height: 104,
@@ -782,12 +856,14 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   logoEmoji: { fontSize: 52 },
-  welcomeTitle: { fontSize: 38, fontWeight: '800', color: '#fff', letterSpacing: 6 },
+  welcomeTitle: { fontSize: 36, lineHeight: 46, fontWeight: '800', color: '#fff', textAlign: 'center', alignSelf: 'stretch' },
   welcomeSlogan: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.75)',
+    fontSize: 16,
+    lineHeight: 25,
+    textAlign: 'center',
+    color: '#e0d3eb',
     marginTop: 10,
-    letterSpacing: 1,
+    paddingHorizontal: 4,
   },
   featureBox: {
     marginTop: 36,
@@ -799,37 +875,40 @@ const styles = StyleSheet.create({
     padding: 20,
     gap: 16,
   },
-  featureRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  featureRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   featureIcon: { fontSize: 20 },
-  featureText: { flex: 1, color: 'rgba(255,255,255,0.88)', fontSize: 14, lineHeight: 20 },
-  welcomeHint: { color: 'rgba(255,255,255,0.5)', fontSize: 12, marginTop: 14 },
+  featureText: { flex: 1, minWidth: 0, textAlign: 'left', color: '#f0e7f6', fontSize: 15, lineHeight: 24 },
+  welcomeHint: { color: '#d0bedc', fontSize: 13, lineHeight: 21, marginTop: 14, textAlign: 'center' },
 
   // 通用按钮
   primaryBtn: { alignSelf: 'stretch', borderRadius: 30, overflow: 'hidden' },
   primaryBtnInner: {
     paddingVertical: 15,
+    paddingHorizontal: 20,
+    minHeight: 56,
     alignItems: 'center',
     borderRadius: 30,
   },
-  primaryBtnText: { color: '#fff', fontSize: 17, fontWeight: '700', letterSpacing: 2 },
+  primaryBtnText: { color: '#25102c', fontSize: 17, fontWeight: '700', textAlign: 'center', lineHeight: 25, flexShrink: 1 },
 
   chip: {
     alignSelf: 'flex-start',
+    maxWidth: '100%',
+    flexShrink: 1,
     paddingHorizontal: 10,
     paddingVertical: 3,
     borderRadius: 999,
     borderWidth: 1,
   },
-  chipText: { fontSize: 11, fontWeight: '700', letterSpacing: 1 },
+  chipText: { fontSize: 12, fontWeight: '700', textAlign: 'left', lineHeight: 18 },
 
   // 主界面
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 24 },
-  appName: { color: '#fff', fontSize: 20, fontWeight: '800', letterSpacing: 3 },
-  dayText: { color: 'rgba(255,255,255,0.65)', fontSize: 12, marginTop: 3, letterSpacing: 1 },
-  dayNum: { fontSize: 15, fontWeight: '800' },
+  header: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', paddingHorizontal: 24, gap: 10 },
+  appName: { color: '#fff', fontSize: 22, lineHeight: 30, fontWeight: '800', textAlign: 'left' },
+  dayText: { color: '#d9cbe4', fontSize: 13, lineHeight: 20, marginTop: 3, textAlign: 'left' },
   iconBtn: {
-    width: 42,
-    height: 42,
+    width: 44,
+    height: 44,
     borderRadius: 21,
     backgroundColor: 'rgba(255,255,255,0.1)',
     borderWidth: 1,
@@ -851,6 +930,10 @@ const styles = StyleSheet.create({
   themeScroll: { flexGrow: 0, marginTop: 14 },
   themeScrollContent: { paddingHorizontal: 24, gap: 10 },
   themeChip: {
+    maxWidth: 220,
+    minWidth: 104,
+    minHeight: 64,
+    justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 14,
     paddingVertical: 8,
@@ -860,26 +943,21 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.06)',
     gap: 2,
   },
-  themeChipMonth: { color: 'rgba(255,255,255,0.5)', fontSize: 10, fontWeight: '700' },
-  themeChipName: { color: 'rgba(255,255,255,0.75)', fontSize: 13, fontWeight: '700' },
+  themeChipMonth: { color: '#d0c4dc', fontSize: 12, lineHeight: 18, textAlign: 'center' },
+  themeChipName: { color: '#eee5f5', fontSize: 14, lineHeight: 21, fontWeight: '600', textAlign: 'center' },
 
   stageBanner: {
     paddingHorizontal: 24,
     marginTop: 10,
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
     gap: 10,
   },
-  stageBannerSub: { color: 'rgba(255,255,255,0.6)', fontSize: 13, letterSpacing: 2, flexShrink: 1 },
+  stageBannerSub: { color: '#dfd2e9', fontSize: 14, lineHeight: 22, flexGrow: 1, flexShrink: 1, flexBasis: 160, textAlign: 'left' },
 
   // 卡片
-  cardWrap: { flex: 1, minHeight: 0 },
-  cardScrollContent: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 8,
-  },
+  cardWrap: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 24 },
   card: {
     backgroundColor: 'rgba(255,255,255,0.09)',
     borderRadius: 28,
@@ -897,14 +975,14 @@ const styles = StyleSheet.create({
   quoteMark: { fontSize: 40, lineHeight: 44, fontWeight: '900', opacity: 0.9 },
   cardText: {
     color: '#fff',
-    fontSize: 22,
-    lineHeight: 34,
+    fontSize: 24,
+    lineHeight: 38,
     fontWeight: '600',
-    letterSpacing: 0.5,
+    textAlign: 'left',
     marginVertical: 8,
   },
   cardPlaceholder: {
-    color: 'rgba(255,255,255,0.55)',
+    color: '#e0d5eb',
     fontSize: 17,
     lineHeight: 30,
     textAlign: 'center',
@@ -912,12 +990,14 @@ const styles = StyleSheet.create({
   },
   cardFooter: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
     alignItems: 'center',
     justifyContent: 'space-between',
     marginTop: 12,
   },
-  cardMeta: { color: 'rgba(255,255,255,0.5)', fontSize: 12, letterSpacing: 1.5 },
-  cardActions: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  cardMeta: { color: '#d8cae4', fontSize: 12, lineHeight: 20, flexShrink: 1, textAlign: 'left', maxWidth: '100%' },
+  cardActions: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 10, maxWidth: '100%' },
   favIcon: { fontSize: 26 },
 
   hintBox: {
@@ -929,25 +1009,29 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.18)',
     gap: 6,
   },
-  hintTitle: { fontSize: 12, fontWeight: '800', letterSpacing: 1 },
-  hintText: { color: 'rgba(255,255,255,0.85)', fontSize: 13, lineHeight: 21 },
+  hintTitle: { fontSize: 14, lineHeight: 22, fontWeight: '700', textAlign: 'left' },
+  hintText: { color: '#eee4f5', fontSize: 14, lineHeight: 23, textAlign: 'left', flexShrink: 1 },
   hintBtn: {
     borderWidth: 1,
     borderRadius: 999,
     paddingHorizontal: 12,
-    paddingVertical: 5,
+    paddingVertical: 10,
+    minHeight: 44,
+    justifyContent: 'center',
+    maxWidth: '100%',
+    flexShrink: 1,
   },
-  hintBtnText: { fontSize: 12, fontWeight: '700' },
+  hintBtnText: { fontSize: 13, lineHeight: 20, fontWeight: '700', textAlign: 'center' },
 
   remainText: {
-    color: 'rgba(255,255,255,0.55)',
+    color: '#dfd2e9',
     fontSize: 12,
     textAlign: 'center',
     marginTop: 8,
-    letterSpacing: 1,
+    lineHeight: 20,
   },
 
-  bottomRow: { flexDirection: 'row', gap: 14, paddingHorizontal: 24, marginTop: 12 },
+  bottomRow: { flexDirection: 'row', gap: 12, paddingHorizontal: 24, marginTop: 16 },
   bottomBtn: {
     flexDirection: 'row',
     gap: 8,
@@ -955,6 +1039,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 48,
     paddingVertical: 12,
+    paddingHorizontal: 12,
     borderRadius: 18,
     backgroundColor: 'rgba(255,255,255,0.08)',
     borderWidth: 1,
@@ -965,7 +1050,9 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.85)',
     fontSize: 14,
     fontWeight: '600',
-    letterSpacing: 1,
+    flexShrink: 1,
+    textAlign: 'center',
+    lineHeight: 22,
   },
 
   // 弹窗
@@ -975,6 +1062,9 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     maxHeight: '85%',
+    width: '100%',
+    maxWidth: 680,
+    alignSelf: 'center',
     minHeight: '55%',
     paddingTop: 10,
   },
@@ -991,10 +1081,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 22,
     marginBottom: 12,
-    gap: 20,
+    gap: 8,
   },
-  tabBtn: { paddingVertical: 8, alignItems: 'center' },
-  tabText: { color: 'rgba(255,255,255,0.45)', fontSize: 15, fontWeight: '600' },
+  tabBtn: { paddingVertical: 8, minHeight: 44, flex: 1, alignItems: 'center', justifyContent: 'center' },
+  tabText: { color: '#cdbedc', fontSize: 15, lineHeight: 23, textAlign: 'center', fontWeight: '600' },
   tabTextActive: { color: '#fff' },
   tabUnderline: {
     height: 3,
@@ -1005,9 +1095,9 @@ const styles = StyleSheet.create({
   },
   modalClose: { color: 'rgba(255,255,255,0.6)', fontSize: 18, padding: 4 },
 
-  emptyBox: { alignItems: 'center', paddingVertical: 60, gap: 12 },
+  emptyBox: { alignItems: 'center', paddingVertical: 32, paddingHorizontal: 24, gap: 12, flexShrink: 1 },
   emptyEmoji: { fontSize: 44 },
-  emptyText: { color: 'rgba(255,255,255,0.5)', fontSize: 14 },
+  emptyText: { color: '#d3c5e1', fontSize: 15, lineHeight: 25, textAlign: 'center', flexShrink: 1 },
 
   listItem: {
     backgroundColor: 'rgba(255,255,255,0.06)',
@@ -1018,16 +1108,18 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     gap: 10,
   },
-  listItemTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  listDate: { color: 'rgba(255,255,255,0.4)', fontSize: 11 },
+  listItemTop: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10 },
+  listDate: { color: '#cbbbda', fontSize: 12, lineHeight: 19 },
   listFav: { fontSize: 20 },
-  listText: { color: 'rgba(255,255,255,0.92)', fontSize: 15, lineHeight: 24 },
+  listText: { color: '#f4eef9', fontSize: 16, lineHeight: 26, textAlign: 'left' },
 
   // 旅程弹窗
-  journeyTitle: { color: '#fff', fontSize: 18, fontWeight: '800', letterSpacing: 2 },
-  statRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 20, marginBottom: 16 },
+  journeyTitle: { color: '#fff', fontSize: 20, lineHeight: 30, fontWeight: '700', flex: 1, textAlign: 'left' },
+  statRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingHorizontal: 20, marginBottom: 16 },
   statBox: {
-    flex: 1,
+    flexGrow: 1,
+    flexBasis: '40%',
+    paddingHorizontal: 8,
     backgroundColor: 'rgba(255,255,255,0.07)',
     borderRadius: 16,
     paddingVertical: 14,
@@ -1035,7 +1127,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   statNum: { color: '#fff', fontSize: 20, fontWeight: '800' },
-  statLabel: { color: 'rgba(255,255,255,0.5)', fontSize: 11 },
+  statLabel: { color: '#d1c2df', fontSize: 13, lineHeight: 21, textAlign: 'center' },
   stageRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1046,10 +1138,10 @@ const styles = StyleSheet.create({
   },
   stageRowCurrent: { backgroundColor: 'rgba(255,255,255,0.07)' },
   stageDot: { width: 10, height: 10, borderRadius: 5 },
-  stageName: { color: '#fff', fontSize: 14, fontWeight: '700' },
-  stageSub: { color: 'rgba(255,255,255,0.45)', fontSize: 11, marginTop: 2 },
+  stageName: { color: '#fff', fontSize: 15, lineHeight: 24, fontWeight: '700', textAlign: 'left' },
+  stageSub: { color: '#cdbedc', fontSize: 13, lineHeight: 21, marginTop: 2, textAlign: 'left' },
   stageCount: { fontSize: 12, fontWeight: '700' },
-  journeyStart: { color: 'rgba(255,255,255,0.45)', fontSize: 12, textAlign: 'center', marginTop: 12 },
-  resetBtn: { alignSelf: 'center', marginTop: 10, padding: 8 },
-  resetText: { color: '#ff6b81', fontSize: 13, fontWeight: '600' },
+  journeyStart: { color: '#cdbedc', fontSize: 13, lineHeight: 21, textAlign: 'center', marginTop: 16 },
+  resetBtn: { alignSelf: 'center', marginTop: 10, minHeight: 44, justifyContent: 'center', padding: 8 },
+  resetText: { color: '#ff9fae', fontSize: 14, lineHeight: 22, fontWeight: '600', textAlign: 'center' },
 });
