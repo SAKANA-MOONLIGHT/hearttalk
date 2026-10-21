@@ -4,6 +4,8 @@
 
 [Download the latest Android APK](https://github.com/SAKANA-MOONLIGHT/hearttalk/releases/latest)
 
+Android v1.2.0 uses a new build project and package name, `com.sakanamoonlight.hearttalk`, so it can be installed alongside older versions. History and favorites remain in the old app and are not automatically imported.
+
 A random conversation game for couples: **366 days and 366 unique questions** to help you get to know each other.
 
 - **Month 1, days 1–31:** 31 flirty questions about first impressions, attraction and growing closer.

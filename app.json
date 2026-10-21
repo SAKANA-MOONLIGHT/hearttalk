@@ -15,11 +15,18 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.hearttalk.app",
       "infoPlist": {
-        "CFBundleDisplayName": "心动话题"
+        "CFBundleDisplayName": "心动话题",
+        "ExpoLocalization_supportsRTL": false,
+        "CFBundleLocalizations": [
+          "zh",
+          "en",
+          "ja",
+          "ko"
+        ]
       }
     },
     "android": {
-      "package": "com.hearttalk.app",
+      "package": "com.sakanamoonlight.hearttalk",
       "adaptiveIcon": {
         "backgroundColor": "#1a1033",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -31,17 +38,25 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
+    "owner": "yuaa",
+    "plugins": [
+      [
+        "expo-localization",
+        {
+          "supportedLocales": [
+            "zh",
+            "en",
+            "ja",
+            "ko"
+          ],
+          "supportsRTL": false
+        }
+      ]
+    ],
     "extra": {
       "eas": {
-        "projectId": "305fba7d-aa2a-4953-a192-9c2ee02f9350"
+        "projectId": "970ac77e-6144-4afd-a128-fc698209f31f"
       }
-    },
-    "owner": "kurosiro",
-    "plugins": [
-      ["expo-localization", {
-        "supportedLocales": ["zh", "en", "ja", "ko"],
-        "supportsRTL": false
-      }]
-    ]
+    }
   }
 }

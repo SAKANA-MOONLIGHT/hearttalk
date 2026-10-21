@@ -4,6 +4,8 @@
 
 [최신 Android APK 다운로드](https://github.com/SAKANA-MOONLIGHT/hearttalk/releases/latest)
 
+Android v1.2.0은 새 빌드 프로젝트와 패키지 이름 `com.sakanamoonlight.hearttalk`을 사용하므로 이전 버전과 함께 설치할 수 있어요. 이전 기록과 즐겨찾기는 기존 앱에 남으며 새 앱으로 자동 이전되지 않아요.
+
 연인이나 서로를 알아가는 두 사람을 위한 랜덤 대화 질문 게임이에요. **366일 동안 중복 없는 질문 366개**로 조금씩 더 가까워져 보세요.
 
 - **1개월째, 1~31일**: 첫인상과 설렘을 나누는 썸 질문 31개.

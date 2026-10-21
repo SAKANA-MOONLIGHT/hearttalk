@@ -4,6 +4,8 @@
 
 [下载最新 Android APK](https://github.com/SAKANA-MOONLIGHT/hearttalk/releases/latest)
 
+Android v1.2.0 迁移至新的构建项目与包名 `com.sakanamoonlight.hearttalk`，可与旧版并存。旧版的本地历史和收藏仍留在旧应用中，不会自动导入新版。
+
 一款情侣随机话题生成游戏，覆盖 **366 天、366 个不重复话题** 的对话之旅：
 
 - **第 1 个月（第 1~31 天）**：31 个「暧昧篇」话题 —— 试探、心动、心照不宣
