@@ -2,6 +2,8 @@
 
 [中文](README.md) | [English](README.en.md) | [日本語](README.ja.md) | **한국어**
 
+[최신 Android APK 다운로드](https://github.com/SAKANA-MOONLIGHT/hearttalk/releases/latest)
+
 연인이나 서로를 알아가는 두 사람을 위한 랜덤 대화 질문 게임이에요. **366일 동안 중복 없는 질문 366개**로 조금씩 더 가까워져 보세요.
 
 - **1개월째, 1~31일**: 첫인상과 설렘을 나누는 썸 질문 31개.

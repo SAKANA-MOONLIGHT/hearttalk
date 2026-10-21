@@ -2,6 +2,8 @@
 
 **中文** | [English](README.en.md) | [日本語](README.ja.md) | [한국어](README.ko.md)
 
+[下载最新 Android APK](https://github.com/SAKANA-MOONLIGHT/hearttalk/releases/latest)
+
 一款情侣随机话题生成游戏，覆盖 **366 天、366 个不重复话题** 的对话之旅：
 
 - **第 1 个月（第 1~31 天）**：31 个「暧昧篇」话题 —— 试探、心动、心照不宣

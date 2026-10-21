@@ -2,6 +2,8 @@
 
 [中文](README.md) | [English](README.en.md) | **日本語** | [한국어](README.ko.md)
 
+[最新版の Android APK をダウンロード](https://github.com/SAKANA-MOONLIGHT/hearttalk/releases/latest)
+
 恋人同士や、これから距離を縮めたいふたりのためのランダム質問ゲームです。**366 日、重複しない 366 の質問**を通して、お互いを少しずつ知っていきます。
 
 - **1 か月目（1〜31 日目）**：第一印象やときめきについて話す、恋の始まりの 31 問。

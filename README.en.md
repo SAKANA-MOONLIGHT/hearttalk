@@ -2,6 +2,8 @@
 
 [中文](README.md) | **English** | [日本語](README.ja.md) | [한국어](README.ko.md)
 
+[Download the latest Android APK](https://github.com/SAKANA-MOONLIGHT/hearttalk/releases/latest)
+
 A random conversation game for couples: **366 days and 366 unique questions** to help you get to know each other.
 
 - **Month 1, days 1–31:** 31 flirty questions about first impressions, attraction and growing closer.
