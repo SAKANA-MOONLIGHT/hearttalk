@@ -1,5 +1,7 @@
 # 心动话题 HeartTalk 💞
 
+**中文** | [English](README.en.md) | [日本語](README.ja.md) | [한국어](README.ko.md)
+
 一款情侣随机话题生成游戏，覆盖 **366 天、366 个不重复话题** 的对话之旅：
 
 - **第 1 个月（第 1~31 天）**：31 个「暧昧篇」话题 —— 试探、心动、心照不宣
@@ -56,8 +58,9 @@ React Native + Expo SDK 56（TypeScript），**一套代码同时支持 Android 
 
 ## 本地运行（开发预览）
 
+在仓库根目录执行：
+
 ```bash
-cd HeartTalk
 npm install
 npx expo start
 ```
@@ -113,3 +116,7 @@ npx expo export --platform all
 ```
 
 Web 预览使用 `npm run web`。`react-dom` 和 `react-native-web` 已作为 Expo SDK 56 兼容依赖加入；移动端仍使用 React Native 原生组件。
+
+## 界面预览
+
+![中文话题与开场提示](validation/screenshots/zh-390.jpg)
